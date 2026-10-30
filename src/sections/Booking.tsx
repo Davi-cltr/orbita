@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { motion, useMotionValueEvent, useReducedMotion, useScroll, useSpring, useTransform } from 'motion/react'
 import { Button } from '@/components/ui/button'
 import { RollText } from '@/components/RollText'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
+import { BoardingPass } from '@/components/BoardingPass'
+import { createReservation, type Destino, type Reservation } from '@/lib/reservation'
 
 const ORBIT = 'M120 380C120 170 470 70 760 130S1120 390 900 520 330 600 190 500 120 420 120 380'
 
@@ -105,20 +107,38 @@ export function BookingCta({ onBook }: { onBook: () => void }) {
   )
 }
 
-const DESTINOS = ['Lua', 'Marte', 'Júpiter', 'Saturno'] as const
+const DESTINOS: Destino[] = ['Lua', 'Marte', 'Júpiter', 'Saturno']
 
-export function BookingDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
-  const [destino, setDestino] = useState<(typeof DESTINOS)[number]>('Marte')
+type View = 'form' | 'pass' | 'cancel'
+
+export function BookingDialog({
+  open,
+  onOpenChange,
+  reservation,
+  onReserve,
+  onCancel,
+}: {
+  open: boolean
+  onOpenChange: (o: boolean) => void
+  reservation: Reservation | null
+  onReserve: (r: Reservation) => void
+  onCancel: () => void
+}) {
+  const [view, setView] = useState<View>('form')
+  const [fresh, setFresh] = useState(false)
+  const [destino, setDestino] = useState<Destino>('Marte')
   const [nome, setNome] = useState('')
   const [email, setEmail] = useState('')
   const [errors, setErrors] = useState<{ nome?: string; email?: string }>({})
-  const [done, setDone] = useState(false)
 
-  useEffect(() => {
-    if (!open) {
-      const t = window.setTimeout(() => setDone(false), 300)
-      return () => window.clearTimeout(t)
+  // ao abrir: quem já reservou vê o cartão; quem não reservou vê o formulário
+  useLayoutEffect(() => {
+    if (open) {
+      setView(reservation ? 'pass' : 'form')
+      setFresh(false)
+      setErrors({})
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
   const submit = (e: React.FormEvent) => {
@@ -128,34 +148,86 @@ export function BookingDialog({ open, onOpenChange }: { open: boolean; onOpenCha
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) next.email = 'Use um e-mail completo, como voce@exemplo.com.'
     setErrors(next)
     const first = next.nome ? 'nome' : next.email ? 'email' : null
-    if (first) document.getElementById(first)?.focus()
-    else setDone(true)
+    if (first) {
+      document.getElementById(first)?.focus()
+      return
+    }
+    onReserve(createReservation(nome, destino))
+    setFresh(true)
+    setView('pass')
+  }
+
+  const changeDestination = () => {
+    if (reservation) {
+      setNome(reservation.nome)
+      setDestino(reservation.destino)
+    }
+    setView('form')
   }
 
   const field = 'mt-2 h-12 w-full rounded-xl border border-vacuo/20 bg-white px-4 text-[1rem] text-vacuo outline-none transition-[border-color,box-shadow] focus:border-vacuo focus:shadow-[0_0_0_3px_rgba(255,90,31,0.35)] aria-[invalid=true]:border-[#a8301a]'
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        {done ? (
-          <div className="py-4">
-            <svg viewBox="0 0 64 64" className="mb-6 size-16" aria-hidden="true">
-              <circle cx="32" cy="32" r="30" fill="#ff5a1f" />
-              <path d="M19 33l9 9 17-19" fill="none" stroke="#10104a" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            <DialogTitle>Assento reservado para {destino}</DialogTitle>
-            <DialogDescription className="mt-3">
-              Boa viagem, {nome.trim().split(' ')[0]}. A Órbita é uma agência de mentira, criada para esta demonstração: nenhum dado saiu do seu navegador.
-            </DialogDescription>
-            <Button className="mt-8" variant="default" onClick={() => onOpenChange(false)}>
-              <RollText>Voltar ao site</RollText>
-            </Button>
+      <DialogContent className={view === 'form' ? undefined : 'max-w-2xl'}>
+        {view !== 'form' && reservation ? (
+          <div>
+            <div className="pr-10">
+              <DialogTitle>{fresh ? `Assento reservado para ${reservation.destino}` : 'Seu cartão de embarque'}</DialogTitle>
+              <DialogDescription className="mt-2">
+                {fresh ? `Boa viagem, ${reservation.nome.split(' ')[0]}. ` : ''}
+                O cartão fica salvo só neste navegador. A Órbita é fictícia: nada foi enviado para lugar nenhum.
+              </DialogDescription>
+            </div>
+            <div className="mt-6">
+              <BoardingPass key={reservation.codigo} r={reservation} />
+            </div>
+            {view === 'cancel' ? (
+              <div role="group" aria-labelledby="cancelar-pergunta" className="mt-6 rounded-2xl bg-vacuo/6 p-4">
+                <p id="cancelar-pergunta" className="font-medium">
+                  Cancelar a reserva para {reservation.destino}? O assento {reservation.assento} volta a ficar livre.
+                </p>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <Button
+                    size="sm"
+                    className="bg-[#a8301a] text-poeira hover:bg-vacuo"
+                    onClick={() => {
+                      onCancel()
+                      setNome('')
+                      setEmail('')
+                      setView('form')
+                    }}
+                  >
+                    <RollText>Cancelar reserva</RollText>
+                  </Button>
+                  <Button size="sm" variant="ghost" className="text-vacuo hover:bg-vacuo/10" onClick={() => setView('pass')} autoFocus>
+                    <RollText>Manter reserva</RollText>
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-6 flex flex-wrap items-center gap-3">
+                <Button onClick={() => onOpenChange(false)}>
+                  <RollText>Voltar ao site</RollText>
+                </Button>
+                <Button variant="ghost" className="text-vacuo hover:bg-vacuo/10" onClick={changeDestination}>
+                  <RollText>Trocar destino</RollText>
+                </Button>
+                <Button variant="ghost" className="text-[#a8301a] hover:bg-[#a8301a]/10" onClick={() => setView('cancel')}>
+                  <RollText>Cancelar reserva</RollText>
+                </Button>
+              </div>
+            )}
           </div>
         ) : (
           <>
             <div className="pr-10">
-              <DialogTitle>Reservar assento</DialogTitle>
-              <DialogDescription className="mt-2">Escolha o destino. A gente guarda um lugar perto da janela.</DialogDescription>
+              <DialogTitle>{reservation ? 'Trocar destino' : 'Reservar assento'}</DialogTitle>
+              <DialogDescription className="mt-2">
+                {reservation
+                  ? `Sua reserva atual é para ${reservation.destino}. Ao confirmar, ela é substituída por esta.`
+                  : 'Escolha o destino. A gente guarda um lugar perto da janela.'}
+              </DialogDescription>
             </div>
             <form onSubmit={submit} noValidate className="grid gap-5">
               <fieldset>
@@ -176,12 +248,23 @@ export function BookingDialog({ open, onOpenChange }: { open: boolean; onOpenCha
               </div>
               <div>
                 <label htmlFor="email" className="text-sm font-medium">E-mail</label>
-                <input id="email" name="email" spellCheck={false} type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} aria-invalid={!!errors.email} aria-describedby={errors.email ? 'email-erro' : undefined} className={field} />
-                {errors.email && <p id="email-erro" aria-live="polite" className="mt-1.5 text-sm text-[#a8301a]">{errors.email}</p>}
+                <input id="email" name="email" spellCheck={false} type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} aria-invalid={!!errors.email} aria-describedby={errors.email ? 'email-erro' : 'email-nota'} className={field} />
+                {errors.email ? (
+                  <p id="email-erro" aria-live="polite" className="mt-1.5 text-sm text-[#a8301a]">{errors.email}</p>
+                ) : (
+                  <p id="email-nota" className="mt-1.5 text-sm text-vacuo/60">Só para conferir. O e-mail não é guardado.</p>
+                )}
               </div>
-              <Button type="submit" size="lg" className="mt-1 w-full sm:w-auto sm:justify-self-start">
-                <RollText>{`Reservar assento para ${destino}`}</RollText>
-              </Button>
+              <div className="mt-1 flex flex-wrap items-center gap-3">
+                <Button type="submit" size="lg" className="w-full sm:w-auto">
+                  <RollText>{`Reservar assento para ${destino}`}</RollText>
+                </Button>
+                {reservation && (
+                  <Button type="button" variant="ghost" className="text-vacuo hover:bg-vacuo/10" onClick={() => setView('pass')}>
+                    <RollText>Manter a reserva atual</RollText>
+                  </Button>
+                )}
+              </div>
             </form>
           </>
         )}

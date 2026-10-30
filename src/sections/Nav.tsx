@@ -10,7 +10,7 @@ const LINKS = [
   { id: 'reservar', label: 'Reservar' },
 ]
 
-export function Nav({ onBook }: { onBook: () => void }) {
+export function Nav({ onBook, seat }: { onBook: () => void; seat?: string }) {
   // depois da viagem, o conteúdo passa por baixo do menu: ganha fundo
   const [solid, setSolid] = useState(false)
   useEffect(() => {
@@ -48,8 +48,15 @@ export function Nav({ onBook }: { onBook: () => void }) {
           </a>
         ))}
       </nav>
-      <Button size="sm" onClick={onBook}>
-        <RollText>Reservar assento</RollText>
+      <Button size="sm" onClick={onBook} variant={seat ? 'light' : 'default'}>
+        {seat ? (
+          <>
+            <RollText>Meu assento</RollText>
+            <span className="rounded-full bg-foguete px-2 py-0.5 text-[0.7rem] text-vacuo">{seat}</span>
+          </>
+        ) : (
+          <RollText>Reservar assento</RollText>
+        )}
       </Button>
     </motion.header>
   )

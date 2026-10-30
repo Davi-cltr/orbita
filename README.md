@@ -12,6 +12,7 @@ Site de demonstração de uma agência fictícia de turismo espacial. A página 
 - **Letreiros em sentidos opostos**, que aceleram com a velocidade da rolagem (dá para pausar).
 - **Galeria horizontal presa na tela** com cartões-postais ilustrados em SVG, que inclinam com a velocidade e com o cursor.
 - **Órbita que se desenha com a rolagem**, com uma nave percorrendo o traço.
+- **Cartão de embarque.** Depois de reservar, aparece um cartão animado com destino, assento na janela, código e código de barras. Ele fica salvo no navegador de quem reservou e reaparece no botão "Meu assento" do menu, com opção de trocar o destino ou cancelar.
 - **Texto que rola letra a letra** nos links e botões, botão magnético e títulos que sobem de dentro de uma máscara.
 
 Com `prefers-reduced-motion` ativado, as passagens viram troca direta, sem rolagem suave nem dobra espacial.
@@ -47,4 +48,4 @@ O repositório já tem um fluxo em `.github/workflows/deploy.yml`. Em **Settings
 
 Distâncias são médias em relação à Terra. Tempos de viagem tomam como base missões reais: Apollo (Lua), Perseverance (Marte), Juno (Júpiter) e Cassini (Saturno). Todos os números estão arredondados.
 
-A Órbita não existe: nenhuma reserva é enviada para lugar nenhum.
+A Órbita não existe: nenhuma reserva é enviada para lugar nenhum. O cartão de embarque fica só no `localStorage` do navegador, sem o e-mail.
